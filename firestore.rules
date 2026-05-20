@@ -1,0 +1,182 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    // Collection: users
+    // Fields: uid, displayName, email, photoURL, role, createdAt
+    //
+    // Collection: professionals
+    // Fields: uid, name, specialties, locationIds, bio, active
+    //
+    // Collection: clients
+    // Fields: uid, name, phone, email, notes
+    //
+    // Collection: services
+    // Fields: name, duration, price, description
+    //
+    // Collection: locations
+    // Fields: name, address
+    //
+    // Collection: appointments
+    // Fields: clientId, clientName, professionalId, professionalName, serviceId, serviceName, locationId, locationName, startTime, endTime, status, notes, createdAt
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (
+          (request.auth.token.email == "ezielfernando93@gmail.com" && request.auth.token.email_verified == true) ||
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+        );
+    }
+
+    function isActive() {
+      return isAuthenticated() && (
+        (request.auth.token.email == "ezielfernando93@gmail.com" && request.auth.token.email_verified == true) ||
+        !exists(/databases/$(database)/documents/users/$(request.auth.uid)) ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('active', true) == true
+      );
+    }
+
+    function isProfessional() {
+      return isAuthenticated() &&
+        (
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'professional') ||
+          (exists(/databases/$(database)/documents/professionals/$(request.auth.uid))) ||
+          (exists(/databases/$(database)/documents/professionals/$(request.auth.uid)) && 
+           get(/databases/$(database)/documents/professionals/$(request.auth.uid)).data.uid == request.auth.uid)
+        );
+    }
+
+    function isClient() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'client';
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidString(field, min, max) {
+      return request.resource.data[field] is string &&
+             request.resource.data[field].size() >= min &&
+             request.resource.data[field].size() <= max;
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['uid', 'displayName', 'email', 'photoURL', 'role', 'active', 'createdAt']) &&
+             data.uid is string &&
+             data.email is string &&
+             data.role in ['admin', 'professional', 'client'];
+    }
+
+    function canSetRole(newRole) {
+      // Only admins can set a role to 'admin'
+      return newRole != 'admin' || isAdmin();
+    }
+
+    function isValidAppointment(data) {
+      return hasRequiredFields(['clientId', 'professionalId', 'serviceId', 'startTime', 'endTime']) &&
+             data.clientId is string &&
+             data.professionalId is string &&
+             data.serviceId is string &&
+             data.startTime is string &&
+             data.endTime is string;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /test/connection {
+      allow read: if true;
+    }
+
+    match /professionals/{profId} {
+      allow read: if isAuthenticated();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (
+        isAuthenticated() && (
+          (resource != null && resource.data.get('uid', '') == request.auth.uid) ||
+          (resource != null && resource.data.get('uid', null) == null && resource.data.email == request.auth.token.email)
+        )
+      );
+    }
+
+    match /clients/{clientId} {
+      allow read: if isAuthenticated() && isActive() && (
+        (resource != null && resource.data.get('uid', '') == request.auth.uid) || 
+        isProfessional() || 
+        isAdmin()
+      );
+      allow create: if isAuthenticated() && isActive();
+      allow update: if isAuthenticated() && isActive() && (
+        (resource != null && resource.data.get('uid', '') == request.auth.uid) || 
+        isProfessional() || 
+        isAdmin()
+      );
+      allow delete: if isAdmin() || isProfessional();
+    }
+
+    match /services/{serviceId} {
+      allow read: if isAuthenticated();
+      allow create: if (isAdmin() || isProfessional()) && isActive();
+      allow update, delete: if isAdmin() || (isProfessional() && isActive() && (
+        !('professionalId' in resource.data) || resource.data.professionalId == request.auth.uid
+      ));
+    }
+
+    match /locations/{locationId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /appointments/{appointmentId} {
+      allow read: if isAuthenticated() && isActive() && (
+        isOwner(resource.data.clientId) ||
+        isProfessional() ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated() && isActive() && (isValidAppointment(request.resource.data) || isProfessional() || isAdmin());
+      allow update: if isAuthenticated() && isActive() && (
+        isOwner(resource.data.clientId) ||
+        isOwner(resource.data.professionalId) ||
+        isAdmin()
+      ) && (isValidAppointment(request.resource.data) || isProfessional() || isAdmin());
+      allow delete: if isAdmin() || (isProfessional() && isActive() && isOwner(resource.data.professionalId));
+    }
+
+    match /settings/global {
+      allow read: if true; // Everyone can read settings to apply theme/logo
+      allow write: if isAdmin();
+    }
+  }
+}

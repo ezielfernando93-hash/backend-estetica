@@ -1,0 +1,133 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User profile with role and basic info",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "professional", "client"] },
+        "notificationSettings": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "remindersEnabled": { "type": "boolean" },
+            "reminderMinutes": { "type": "number" }
+          }
+        },
+        "fcmTokens": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Professional": {
+      "title": "Professional",
+      "description": "Professional details",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "specialties": { "type": "array", "items": { "type": "string" } },
+        "locationIds": { "type": "array", "items": { "type": "string" } },
+        "bio": { "type": "string" },
+        "active": { "type": "boolean" },
+        "color": { "type": "string" },
+        "photoURL": { "type": "string" }
+      },
+      "required": ["uid", "name"]
+    },
+    "Client": {
+      "title": "Client",
+      "description": "Client details",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "Service": {
+      "title": "Service",
+      "description": "Aesthetic service",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "duration": { "type": "number", "description": "Duration in minutes" },
+        "price": { "type": "number" },
+        "description": { "type": "string" },
+        "professionalId": { "type": "string" }
+      },
+      "required": ["name", "duration", "price"]
+    },
+    "Location": {
+      "title": "Location",
+      "description": "Clinical location or room",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "address": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "Appointment": {
+      "title": "Appointment",
+      "description": "Scheduled service",
+      "type": "object",
+      "properties": {
+        "clientId": { "type": "string" },
+        "clientName": { "type": "string" },
+        "professionalId": { "type": "string" },
+        "professionalName": { "type": "string" },
+        "serviceId": { "type": "string" },
+        "serviceName": { "type": "string" },
+        "locationId": { "type": "string" },
+        "locationName": { "type": "string" },
+        "startTime": { "type": "string", "format": "date-time" },
+        "endTime": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["scheduled", "confirmed", "completed", "cancelled", "blocked"] },
+        "paymentStatus": { "type": "string", "enum": ["pending", "paid", "partial", "refunded"] },
+        "paymentMethod": { "type": "string", "enum": ["cash", "credit_card", "debit_card", "pix", "transfer"] },
+        "price": { "type": "number" },
+        "notes": { "type": "string" },
+        "notificationStatus": {
+          "type": "object",
+          "properties": {
+            "sent24h": { "type": "boolean" },
+            "sent2h": { "type": "boolean" },
+            "sent30m": { "type": "boolean" }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["clientId", "professionalId", "serviceId", "startTime", "endTime"]
+    },
+    "AppSettings": {
+      "title": "App Settings",
+      "description": "Global application settings like logo and theme color",
+      "type": "object",
+      "properties": {
+        "logoUrl": { "type": "string" },
+        "themeColor": { "type": "string" },
+        "companyName": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": { "schema": "User", "description": "User profiles" },
+    "/professionals/{professionalId}": { "schema": "Professional", "description": "Professional details" },
+    "/clients/{clientId}": { "schema": "Client", "description": "Client details" },
+    "/services/{serviceId}": { "schema": "Service", "description": "Services offered" },
+    "/locations/{locationId}": { "schema": "Location", "description": "Clinical locations" },
+    "/appointments/{appointmentId}": { "schema": "Appointment", "description": "Scheduled appointments" },
+    "/settings/global": { "schema": "AppSettings", "description": "Global app settings" }
+  }
+}

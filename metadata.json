@@ -1,0 +1,5 @@
+{
+  "name": "Estética Pro",
+  "description": "Sistema profissional de gestão para clínicas de estética com agendamento multiprofissional, controle de clientes, serviços e locais.",
+  "requestFramePermissions": ["notifications"]
+}
